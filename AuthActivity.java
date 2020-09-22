@@ -47,7 +47,7 @@ public class AuthActivity {
         @Override
         public void onPageFinished(WebView view, String url) {
           if (url != getIntent().getStringExtra("BASE") || !url.contains("auth.kodular.io") || !url.contains("/login") || !url.contains("accounts.google.com") || !url.contains("github.com") || !url.contains("facebook.com") || !url.contains("twitter.com")) {
-            return true;
+            finish();
           }
         }
 
@@ -60,7 +60,7 @@ public class AuthActivity {
             } catch(NoSuchPaddingException e) {}
             catch (UnsupportedEncodingException e) {}
           } else if (url != getIntent().getStringExtra("BASE") || !url.contains("auth.kodular.io") || !url.contains("/login") || !url.contains("accounts.google.com") || !url.contains("github.com") || !url.contains("facebook.com") || !url.contains("twitter.com")) {
-            return true;
+            finish();
           }
 
           return false;
