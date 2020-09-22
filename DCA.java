@@ -6,9 +6,14 @@ import com.google.appinventor.components.annotations.SimpleFunction;
 import com.google.appinventor.components.annotations.SimpleObject;
 import com.google.appinventor.components.common.ComponentCategory;
 import com.google.appinventor.components.runtime.AndroidNonvisibleComponent;
+import com.google.appinventor.components.runtime.AndroidViewComponent;
 import com.google.appinventor.components.runtime.ComponentContainer;
 import com.google.appinventor.components.runtime.EventDispatcher;
+import com.google.appinventor.components.runtime.Form;
 import com.google.appinventor.components.runtime.util.YailList;
+
+import com.google.appinventor.components.annotations.androidmanifest.*;
+import com.google.appinventor.components.annotations.UsesActivities;
 
 import android.app.AlertDialog;
 import android.app.AlertDialog.Builder;
@@ -21,9 +26,13 @@ import android.graphics.Bitmap;
 import android.os.Build.VERSION;
 import android.os.Build;
 import android.text.Html;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.LinearLayout;
 import org.json.JSONObject;
 import java.io.UnsupportedEncodingException;
 import java.lang.Math;
@@ -41,6 +50,8 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 
+import com.github.sharkphin.dca.AuthActivity;
+
 @DesignerComponent(
   androidMinSdk = 21,
   category = ComponentCategory.EXTENSION,
@@ -51,21 +62,30 @@ import javax.crypto.NoSuchPaddingException;
   version = 1,
   versionName = "1.0.0"
 )
+@UsesActivities(activities = {
+  @ActivityElement(intentFilters = {
+    @IntentFilterElement(actionElements = {
+      @ActionElement(name = "android.intent.action.VIEW")
+    }, categoryElements = {
+      @CategoryElement(name = "android.intent.category.DEFAULT")
+    })
+  }, name="com.github.sharkphin.dca.AuthActivity$IntentActivity")
+})
 @SimpleObject(external = true)
 public class DCA extends AndroidNonvisibleComponent {
   protected Context context;
+  protected final DCA instance = this;
+  protected Form form;
   protected PublicKey publicKey;
   protected PrivateKey privateKey;
-  protected final List isVisible = new ArrayList<>();
-  protected final List<AlertDialog> authDialogs = new ArrayList<AlertDialog>();
 
   public DCA(ComponentContainer container) {
     super(container.$form());
     this.context = container.$context();
+    this.form = container.$form();
     
     try {
       GenerateKeys();
-      isVisible.add("false");
     } catch (NoSuchAlgorithmException e) {}
   }
 
@@ -129,13 +149,12 @@ public class DCA extends AndroidNonvisibleComponent {
       final String accessConjointUrl = conjointUrl;
       final String baseUrl = base;
 
-      isVisible.set(0, "false");
-
       if (!hasUnacceptableScope) {
         final AlertDialog authDialog = new AlertDialog.Builder(context).create();
 
         final WebView webview = new WebView(context);
         webview.getSettings().setBuiltInZoomControls(false);
+        webview.getSettings().setLoadWithOverviewMode(true);
         webview.getSettings().setJavaScriptEnabled(true);
         webview.getSettings().setUserAgentString(webview.getSettings().getUserAgentString().replace("; wv", ""));
         webview.setFocusable(true);
@@ -144,13 +163,6 @@ public class DCA extends AndroidNonvisibleComponent {
           @Override
           public void onPageFinished(WebView view, String url) {
             if (url.contains("/user-api-key/new?auth_redirect=discourseforum%3A%2F%2Fcallback")) {
-              isVisible.set(0, "check");
-              
-              for (AlertDialog dialog : authDialogs) {
-                dialog.dismiss();
-                authDialogs.remove(authDialogs.indexOf(dialog));
-              }
-
               authDialog.setTitle("Grant application access?");
 
               final StringBuilder scopeMessage = new StringBuilder();
@@ -206,7 +218,6 @@ public class DCA extends AndroidNonvisibleComponent {
                 public void onClick(DialogInterface dialog, int which) {
                   if (which == DialogInterface.BUTTON_NEGATIVE) {
                     dialog.cancel();
-                    isVisible.set(0, "false");
                   }
                 }
               });
@@ -221,21 +232,10 @@ public class DCA extends AndroidNonvisibleComponent {
                   }
 
                   authDialog.show();
-                  authDialogs.add(authDialog);
                 }
               });
             } else if (url.contains("auth.kodular.io") || url.contains("/login") || url.contains("accounts.google.com") || url.contains("github.com") || url.contains("facebook.com")) {
-              if (isVisible.get(0) == "false") {
-                authDialog.setView(webview);
-                authDialog.show();
-                authDialogs.add(authDialog);
-                isVisible.set(0, "true");
-              } else if (isVisible.get(0) == "check") {
-                for (AlertDialog dialog : authDialogs) {
-                  dialog.dismiss();
-                  authDialogs.remove(authDialogs.indexOf(dialog));
-                }
-              }
+              new AuthActivity().startAuthorization(form, base, context, instance, scopes, accessConjointUrl, webview);
             }
           }
 
@@ -243,10 +243,9 @@ public class DCA extends AndroidNonvisibleComponent {
           public boolean shouldOverrideUrlLoading(WebView view, String url) {
             if (url.contains("discourseforum://callback")) {
               authDialog.dismiss();
-              isVisible.set(0, "false");
 
               try {
-                OnAuthenticated(DecryptPayload(url));
+                DecryptPayload(url);
               } catch (NoSuchPaddingException e) {}
               catch(NoSuchAlgorithmException e) {}
               catch(InvalidKeyException e) {}
@@ -254,33 +253,12 @@ public class DCA extends AndroidNonvisibleComponent {
               catch(IllegalBlockSizeException e) {}
               catch(UnsupportedEncodingException e) {}
             } else if (url.contains("/user-api-key/new?auth_redirect=discourseforum%3A%2F%2Fcallback")) {
-              if (authDialog.isShowing()) {
-                isVisible.set(0, "check");
-
-                try {
-                  for (AlertDialog dialog : authDialogs) {
-                    dialog.dismiss();
-                    authDialogs.remove(authDialogs.indexOf(dialog));
-                  }
-                  Authenticate(base, scopes);
-                } catch (NoSuchPaddingException e) {}
-                catch(UnsupportedEncodingException e) {}
-
-                return true;
-              }
+              try {
+                Authenticate(base, scopes);
+              } catch (NoSuchPaddingException e) {}
+              catch(UnsupportedEncodingException e) {}
             } else if (url.contains("auth.kodular.io") || url.contains("/login") || url.contains("accounts.google.com") || url.contains("github.com") || url.contains("facebook.com")) {
-              if (isVisible.get(0) == "false" && !authDialog.isShowing()) {
-                authDialog.setView(webview);
-                authDialog.show();
-                authDialogs.add(authDialog);
-                isVisible.set(0, "true");
-              } else if (isVisible.get(0) == "check") {
-                for (AlertDialog dialog : authDialogs) {
-                  dialog.dismiss();
-                  authDialogs.remove(authDialogs.indexOf(dialog));
-                }
-                return true;
-              }
+              new AuthActivity().startAuthorization(form, base, context, instance, scopes, accessConjointUrl, webview);
             } else {
               return true;
             }
@@ -304,7 +282,7 @@ public class DCA extends AndroidNonvisibleComponent {
     EventDispatcher.dispatchEvent(this, "OnDenied");
   }
 
-  protected String DecryptPayload(String payload) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, UnsupportedEncodingException {
+  protected void DecryptPayload(String payload) throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, BadPaddingException, IllegalBlockSizeException, UnsupportedEncodingException {
     if (payload.contains("discourseforum://callback?payload=")) {
       String step1 = payload.replace("discourseforum://callback?payload=", "");
       String step2 = step1.split("&oneTimePassword")[0].toString();
@@ -317,9 +295,7 @@ public class DCA extends AndroidNonvisibleComponent {
       String baseResult = new String(cipher.doFinal(Base64.getDecoder().decode(step4.getBytes())));
       JSONObject jsonResult = new JSONObject(baseResult);
 
-      return (jsonResult.has("key") ? jsonResult.getString("key") : "");
+      OnAuthenticated(jsonResult.has("key") ? jsonResult.getString("key") : "");
     }
-
-    return "";
   }
 }
