@@ -45,13 +45,6 @@ public class AuthActivity {
 
       savedWebview.setWebViewClient(new WebViewClient() {
         @Override
-        public void onPageFinished(WebView view, String url) {
-          if (url != getIntent().getStringExtra("BASE") || !url.contains("auth.kodular.io") || !url.contains("/login") || !url.contains("accounts.google.com") || !url.contains("github.com") || !url.contains("facebook.com") || !url.contains("twitter.com")) {
-            finish();
-          }
-        }
-
-        @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
           if (url.contains("/user-api-key/new?auth_redirect=discourseforum%3A%2F%2Fcallback")) {
             try {
@@ -59,8 +52,6 @@ public class AuthActivity {
               finish();
             } catch(NoSuchPaddingException e) {}
             catch (UnsupportedEncodingException e) {}
-          } else if (url != getIntent().getStringExtra("BASE") || !url.contains("auth.kodular.io") || !url.contains("/login") || !url.contains("accounts.google.com") || !url.contains("github.com") || !url.contains("facebook.com") || !url.contains("twitter.com")) {
-            finish();
           }
 
           return false;

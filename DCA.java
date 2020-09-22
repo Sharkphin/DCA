@@ -60,7 +60,7 @@ import com.github.sharkphin.dca.AuthActivity;
   iconName = "images/extension.png",
   nonVisible = true,
   version = 1,
-  versionName = "1.0.0"
+  versionName = "1.0.1"
 )
 @UsesActivities(activities = {
   @ActivityElement(intentFilters = {
@@ -257,7 +257,7 @@ public class DCA extends AndroidNonvisibleComponent {
                 Authenticate(base, scopes);
               } catch (NoSuchPaddingException e) {}
               catch(UnsupportedEncodingException e) {}
-            } else if (url.contains("auth.kodular.io") || url.contains("/login") || url.contains("accounts.google.com") || url.contains("github.com") || url.contains("facebook.com")) {
+            } else if (url == base || url == base + "/" || url.contains("auth.kodular.io") || url.contains("/login") || url.contains("accounts.google.com") || url.contains("github.com") || url.contains("facebook.com")) {
               new AuthActivity().startAuthorization(form, base, context, instance, scopes, accessConjointUrl, webview);
             } else {
               return true;
